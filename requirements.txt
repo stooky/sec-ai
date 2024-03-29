@@ -1,0 +1,11 @@
+streamlit
+pandas
+requests_oauthlib
+python_dotenv
+langchain
+unstructured
+pandas
+chromadb
+tiktoken
+openai
+langchain-community
