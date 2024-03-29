@@ -5,7 +5,8 @@ python_dotenv
 langchain
 unstructured
 pandas
-chromadb
+#downgrading due to Streamlit cloud sqlite3 issue
+chromadb==0.3.29
 tiktoken
 openai
 langchain-community
