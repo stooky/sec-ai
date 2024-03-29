@@ -106,7 +106,7 @@ if len(sec_input) >= 3:
             text_splitter = RecursiveCharacterTextSplitter(chunk_size=2000, chunk_overlap=0)
             chunks.extend(text_splitter.split_documents(docs))
 
-        embedding = OpenAIEmbeddings()
+        embedding = OpenAIEmbeddings(openai_api_key=st.session_state["api_key"])
         st.session_state['vectordb'] = Chroma.from_documents(documents=chunks, embedding=embedding)
 
         llm = ChatOpenAI(temperature=0, openai_api_key=st.session_state["api_key"])
