@@ -1,5 +1,4 @@
 import streamlit as st
-import pandas as pd
 
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
@@ -8,14 +7,11 @@ from langchain_community.chat_models import ChatOpenAI
 from langchain.chains.question_answering import load_qa_chain
 from langchain.embeddings.openai import OpenAIEmbeddings
 
-import os
 import requests
-
 from dotenv import load_dotenv
 load_dotenv()
 
 LOCAL_HEADERS = {"User-Agent": "Joseph Conley me@jpc2.org"}
-
 query_params = st.experimental_get_query_params()
 
 # init session
@@ -73,9 +69,32 @@ if len(sec_input) >= 3:
     if selected_record:
         filings = get_filings(selected_record['id'])
 
-        st.title("Results")
-        for index, item in enumerate(filings):
+        st.title("Results for " + selected_record["name"])
+
+        items_per_page = 5
+        total_pages = len(filings) // items_per_page + (1 if len(filings) % items_per_page > 0 else 0)
+        if 'current_page' not in st.session_state:
+            st.session_state.current_page = 1
+
+        prev, next, _ = st.columns([0.15, 0.15, 0.7])
+        with prev:
+            if st.button('Previous'):
+                if st.session_state.current_page > 1:
+                    st.session_state.current_page -= 1
+        with next:
+            if st.button('Next'):
+                if st.session_state.current_page < total_pages:
+                    st.session_state.current_page += 1
+
+        st.write("\n")
+
+        start_index = (st.session_state.current_page - 1) * items_per_page
+        end_index = start_index + items_per_page
+        paginated_items = filings[start_index:end_index]
+
+        for index, item in enumerate(paginated_items):
             col1, col2, col3, col4 = st.columns([0.2, 0.2, 0.4, 0.2])
+
             with col1:
                 st.write(item['date'])
 
@@ -87,8 +106,11 @@ if len(sec_input) >= 3:
 
             with col4:
                 # Create a button for each row
-                if st.button(f"Add Filing", key=item['url']):
-                    st.session_state['docs'].add(item['url'])
+                if(item['url'] not in st.session_state['docs']):
+                    if st.button(f"Add Filing", key=item['url']):
+                        st.session_state['docs'].add(item['url'])
+                else:
+                    st.write("Added!")
 
     if 'docs' in st.session_state:
         st.write("Selected Docs:")
@@ -96,9 +118,12 @@ if len(sec_input) >= 3:
             st.write(d)
 
     if st.button(f"Load Docs", key="start_chat"):
+        # Add a placeholder for the progress bar
+        progress_bar = st.progress(0)
+
         #prep model
         chunks = []
-        for d in st.session_state['docs']:
+        for i, d in enumerate(st.session_state['docs']):
             loader = WebBaseLoader(d, header_template=LOCAL_HEADERS)
             docs = loader.load()
 
@@ -106,11 +131,19 @@ if len(sec_input) >= 3:
             text_splitter = RecursiveCharacterTextSplitter(chunk_size=2000, chunk_overlap=0)
             chunks.extend(text_splitter.split_documents(docs))
 
+            # calculate progress
+            p = (i + 1) * (.6 / len(st.session_state['docs']))
+            progress_bar.progress(p)
+
         embedding = OpenAIEmbeddings(openai_api_key=st.session_state["api_key"])
         st.session_state['vectordb'] = Chroma.from_documents(documents=chunks, embedding=embedding)
 
+        progress_bar.progress(0.8)
+
         llm = ChatOpenAI(temperature=0, openai_api_key=st.session_state["api_key"])
         st.session_state['chain'] = load_qa_chain(llm, chain_type="stuff")
+
+        progress_bar.empty()
 
     if 'chain' in st.session_state:
         st.text_area("Ask a question:", key="user_input", on_change=handle_question)
